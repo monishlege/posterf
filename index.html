@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Poster Rating Panel</title>
+    
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    
+    <style>
+        :root {
+            --bg: #020617;
+            --card: #0f172a;
+            --primary: #6366f1;
+            --secondary: #0ea5e9;
+            --tertiary: #a855f7;
+            --text: #f8fafc;
+            --border: #1e293b;
+        }
+
+        * { 
+            box-sizing: border-box; margin: 0; padding: 0; 
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body { 
+            background-color: var(--bg); color: var(--text);
+            padding-bottom: calc(120px + env(safe-area-inset-bottom));
+            -webkit-font-smoothing: antialiased;
+        }
+
+        header { 
+            background: rgba(15, 23, 42, 0.9);
+            backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+            padding: 20px; text-align: center; position: sticky; top: 0; z-index: 1000;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .container { width: 100%; max-width: 500px; margin: 0 auto; padding: 15px; }
+
+        .judge-input { 
+            width: 100%; padding: 18px; background: #000;
+            border: 2px solid var(--border); border-radius: 12px; 
+            font-size: 16px; color: white; text-align: center;
+            margin-bottom: 25px; outline: none;
+        }
+
+        .team-card { 
+            background: var(--card); margin-bottom: 25px; padding: 20px; 
+            border-radius: 20px; border: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .team-title { font-weight: 900; color: #fff; margin-bottom: 15px; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+
+        .label { font-size: 11px; font-weight: 800; text-transform: uppercase; margin: 15px 0 8px 0; display: block; }
+        .l-1 { color: var(--primary); } .l-2 { color: var(--secondary); } .l-3 { color: var(--tertiary); }
+
+        .grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+
+        .btn {
+            height: 45px; border: 1px solid var(--border); background: #1e293b;
+            color: #94a3b8; border-radius: 10px; font-weight: bold;
+            display: flex; align-items: center; justify-content: center; cursor: pointer;
+        }
+
+        .btn.active-1 { background: var(--primary); color: white; border-color: white; }
+        .btn.active-2 { background: var(--secondary); color: white; border-color: white; }
+        .btn.active-3 { background: var(--tertiary); color: white; border-color: white; }
+
+        .footer { 
+            position: fixed; bottom: 0; left: 0; width: 100%; 
+            background: rgba(15, 23, 42, 0.95); backdrop-filter: blur(15px);
+            padding: 15px 15px calc(15px + env(safe-area-inset-bottom));
+            z-index: 2000; border-top: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .submit-btn { 
+            width: 100%; padding: 20px; background: linear-gradient(to right, var(--primary), var(--tertiary));
+            color: white; border: none; border-radius: 15px; font-weight: 800; font-size: 16px; cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+<header><h3>POSTER RATING</h3></header>
+
+<div class="container">
+    <input type="text" id="jName" class="judge-input" placeholder="ENTER JUDGE NAME" autocomplete="off">
+    <div id="list"></div>
+</div>
+
+<div class="footer">
+    <button type="button" class="submit-btn" onclick="generateExcel()">DOWNLOAD EXCEL REPORT</button>
+</div>
+
+<script>
+    const list = document.getElementById('list');
+    const dataStore = {};
+    const totalTeams = 38;
+
+    // Build the dynamic team cards
+    for(let i=1; i<=totalTeams; i++) {
+        dataStore[i] = { c1:0, c2:0, c3:0 };
+        const div = document.createElement('div');
+        div.className = 'team-card';
+        div.innerHTML = `
+            <div class="team-title">TEAM ${i}</div>
+            <span class="label l-1">Novelty</span>
+            <div class="grid">${createBtns(i, 1)}</div>
+            <span class="label l-2">Poster Design</span>
+            <div class="grid">${createBtns(i, 2)}</div>
+            <span class="label l-3">Presentation</span>
+            <div class="grid">${createBtns(i, 3)}</div>
+        `;
+        list.appendChild(div);
+    }
+
+    function createBtns(tId, cId) {
+        let b = '';
+        for(let v=1; v<=10; v++) {
+            b += `<button class="btn b-${tId}-${cId}" onclick="setScore(${tId}, ${cId}, ${v}, this)">${v}</button>`;
+        }
+        return b;
+    }
+
+    function setScore(t, c, v, btn) {
+        dataStore[t]['c'+c] = v;
+        document.querySelectorAll(`.b-${t}-${c}`).forEach(el => el.classList.remove('active-1','active-2','active-3'));
+        btn.classList.add('active-' + c);
+        if(window.navigator.vibrate) window.navigator.vibrate(15);
+    }
+
+    function generateExcel() {
+        const name = document.getElementById('jName').value.trim();
+        if(!name) return alert("Please enter Judge Name first!");
+
+        const rows = [["TEAM", "NOVELTY", "POSTER", "PRESENTATION", "TOTAL"]];
+        for(let i=1; i<=totalTeams; i++) {
+            const s = dataStore[i];
+            if(!s.c1 || !s.c2 || !s.c3) return alert("Team " + i + " is missing ratings!");
+            rows.push([i, s.c1, s.c2, s.c3, (s.c1 + s.c2 + s.c3)]);
+        }
+
+        const ws = XLSX.utils.aoa_to_sheet([["JUDGE: " + name.toUpperCase()], [], ...rows]);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Judging");
+        XLSX.writeFile(wb, `Judging_${name}.xlsx`);
+    }
+</script>
+</body>
+</html>
